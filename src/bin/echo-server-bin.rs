@@ -18,6 +18,7 @@ async fn main() -> io::Result<()> {
     loop {
         let n = rd.read(&mut buf).await?;
 
+        // "Ok(0)" means EOF and it's important to break the loop here to prevent infinite "0" return
         if n == 0 {
             break;
         };
