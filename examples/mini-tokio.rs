@@ -1,5 +1,4 @@
 use futures::task::{self, ArcWake};
-use std::collections::VecDeque;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex, mpsc};
