@@ -2,7 +2,7 @@ use futures::task::{self, ArcWake};
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex, mpsc};
-use std::task::{Context, Poll};
+use std::task::{Context, Poll, Waker};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -11,7 +11,7 @@ fn main() {
 
     mini_tokio.spawn(async {
         let when = Instant::now() + Duration::from_millis(1000);
-        let future = Delay { when };
+        let future = Delay { when, waker: None };
         let out = future.await;
         assert_eq!(out, "done");
     });
@@ -21,32 +21,46 @@ fn main() {
 
 struct Delay {
     when: Instant,
+    waker: Option<Arc<Mutex<Waker>>>,
 }
 
 impl Future for Delay {
     type Output = &'static str;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         if Instant::now() >= self.when {
             println!("Hello world!");
-            Poll::Ready("done")
+            return Poll::Ready("done");
+        }
+
+        // The duration has not elapsed. If this is the first time the future
+        // is called, spawn the timer thread. If the timer thread is already
+        // running, ensure the stored `Waker` matches the current task's
+        if let Some(waker) = &self.waker {
+            let mut waker = waker.lock().unwrap();
+
+            // Check if the stored waker matches the current task's waker
+            if !waker.will_wake(cx.waker()) {
+                *waker = cx.waker().clone();
+            };
         } else {
             // Get a handle to the waker for the current task
-            let waker = cx.waker().clone();
+            let waker = Arc::new(Mutex::new(cx.waker().clone()));
             let when = self.when;
+            self.waker = Some(waker.clone());
 
             thread::spawn(move || {
                 let now = Instant::now();
 
                 if now < when {
                     thread::sleep(when - now);
-
-                    waker.wake();
                 }
-            });
 
-            Poll::Pending
-        }
+                let waker = waker.lock().unwrap();
+                waker.wake_by_ref();
+            });
+        };
+        Poll::Pending
     }
 }
 struct MiniTokio {
