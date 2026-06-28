@@ -1,10 +1,4 @@
-In this file you will write this page's code. Whenever you want to run it, you will have to launch the server first in a separate terminal window:
-```sh
-cargo run --bin server
-```
 
-And then the client, separately:
+# Tokio Tutorial
 
-```sh
-cargo run --bin client
-```
+Hi, it's me just doing follow-along of the [official tokio tutorial](https://tokio.rs/tokio/tutorial)
