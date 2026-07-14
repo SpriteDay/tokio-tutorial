@@ -1,12 +1,24 @@
 use tokio::sync::oneshot;
 
+async fn some_operation() -> String {
+    String::from("some expensive computation result")
+}
+
 #[tokio::main]
 async fn main() {
-    let (tx1, rx1) = oneshot::channel();
+    let (mut tx1, rx1) = oneshot::channel();
     let (tx2, rx2) = oneshot::channel();
 
     tokio::spawn(async {
-        let _ = tx1.send("one");
+        tokio::select! {
+            val = some_operation() => {
+                let _ = tx1.send(val);
+            }
+            _ = tx1.closed() => {
+                // `some_operation()` is canceled, the
+                // task completes and `tx1` is dropped.
+            }
+        }
     });
 
     tokio::spawn(async {
